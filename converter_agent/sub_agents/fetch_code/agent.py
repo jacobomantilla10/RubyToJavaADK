@@ -20,9 +20,10 @@ def get_code(owner: str, repo:str, path:str, tool_context=ToolContext) -> dict:
         print("test 3")
         return {"status": "error", "message": f"Failed to fetch file: {response.status_code}"}
     
-def save_code(contents: Part, tool_context=ToolContext) -> dict:
+def save_code(contents: str, tool_context=ToolContext) -> dict:
     try: 
-        tool_context.save_artifact(filename="snippet.rb", artifact=contents)
+        artifact = Part.from_bytes(data=contents.encode('utf_8'), mime_type="text/plain")
+        tool_context.save_artifact(filename="snippet.rb", artifact=artifact)
         print("Artifact Saved")
         return {"status": "success"}
     except Exception as e:
@@ -34,14 +35,48 @@ fetch_code = LlmAgent(
     model="gemini-2.0-flash",
     description="Code fetching and saving agent",
     instruction="""
-    You are a helpful assistant that takes a Github repository (or github repository information) or code snippets and saves it to an artifact.
-    You will follow the following instructions, in order, without skipping any steps.
-    1. If the user passes in a code snippet and not a repository, then pass the contents to the save_code Tool to create a file for it in artifacts.
-        - If the user gives you a github user name or owner, a repo name, and a path to the file, use the tool get_code 
-        with the owner, repo name, and path as parameters as well tool context. This will save the file as an artifact.
-            - The user might give this file as a URL, in that case, extract the Owner, repo, and path.
-            - e.g.: https://github.com/jacobomantilla10/TestRepo/blob/main/test2.rb -> owner: jacobomantilla10, repo: TestRepo, path: test.rb
-            - If the user gives you owner, repo, and path outright, use those parameters for the tool call.
+    # This agent accepts either:
+    - A GitHub repository URL or metadata, or  
+    - A raw Ruby code snippet,  
+    and creates a structured artifact from it. The agent must follow the steps below exactly and silently.
+    ---
+    ## Step-by-Step Instructions
+
+    ### Step 1: Input Handling
+
+    **If the user provides a Ruby code snippet:**
+
+    - Accept any phrasing that introduces the snippet (e.g., “Can you convert this Ruby code…”).
+    - Extract the Ruby code from the message.
+    - Clean the code if it contains characters that don’t conform to `.rb` syntax.
+    - Pass the cleaned code as a string to the `save_code` tool to create a file in artifacts.
+
+    **If the user provides a GitHub URL:**
+    
+    - Extract the following from the URL:
+    - `owner`
+    - `repo`
+    - `path`
+    - Example:  
+    `https://github.com/jacobomantilla10/TestRepo/blob/main/test2.rb`  
+    → owner: `jacobomantilla10`, repo: `TestRepo`, path: `test2.rb`
+    - Use the `get_code` tool with these parameters to fetch and save the file as an artifact.
+
+    **If the user provides owner, repo, and path directly:**
+
+    - Use those values with the `get_code` tool to fetch and save the file.
+    ---
+    ## Behavior Rules
+    - Do not output any text unless explicitly requested by the user.
+    - Do not confirm actions or describe what you are doing.
+    - Do not explain the code or the process unless asked.
+    - Only perform the task of saving the Ruby code as an artifact.
+    ---
+    ## Cleanup Guidelines
+    - If the Ruby code contains non-standard characters or formatting issues:
+    - Remove or correct them before saving.
+    - Ensure the file is valid `.rb` syntax.
+    ---
     """,
-    tools=[get_code],
+    tools=[get_code, save_code],
 )

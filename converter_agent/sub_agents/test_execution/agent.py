@@ -1,3 +1,4 @@
+import requests
 from google.adk.agents import LlmAgent
 from google.adk.tools import ToolContext
 from google.adk.code_executors import VertexAiCodeExecutor
@@ -35,6 +36,47 @@ def get_ruby_test_file(tool_context=ToolContext) -> dict:
         return {"status": "success", "contents": content_str, "filename": artifact_name}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+    
+def run_tests(language: str, filename: str, contents: str):
+    # TODO add Access Token
+    url = "https://onecompiler-onecompiler-default.p.rapidapi.com/run"
+    key = "0b2c052ee6mshdd2d12a7f8b1d92p1fffe0jsn96410d3d8aca"
+    data = {
+        "language": language,
+        "files": [
+            {
+            "name": filename,
+            "content": contents
+            }
+        ]
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "X-RapidAPI-Key": key,
+        "X-RapidAPI-Host": "onecompiler-onecompiler-default.p.rapidapi.com"
+    }
+    print(f"Querying URL: {url}")
+    try:
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()
+        result = response.json()
+        # Extract and return relevant info
+        return {
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "status": result.get("status", "error"),
+            "exception": result.get("exception", None),
+            "executionTime": result.get("executionTime", None)
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "stdout": "",
+            "stderr": str(e),
+            "status": "error",
+            "exception": None,
+            "executionTime": None
+        }
+
 
 test_execution = LlmAgent(
     name="test_execution",
@@ -42,14 +84,25 @@ test_execution = LlmAgent(
     description="Test execution agent",
     code_executor=VertexAiCodeExecutor(),
     instruction="""
-    You are a helpful assistant that takes in Ruby and Java test files and executes them with the aim to see that both files return the same results for the same
-    inputs. You will follow the following instructions, in order, without skipping any steps.
-    1. Fetch the Ruby and Java test files using the get_ruby_test_file and get_java_test_file tools accordingly. get_java_test_file will return an object containing several
-    files and their contents as key-value pairs.The key is the filename and the value is the content of the file.
-    2. Use the code executor to execute the Ruby and Java test files to test the Ruby and Java files present in artifacts storage.
-    3. Report back the results, and whether or not both test files yielded the same results for the Java and Ruby files. Our aim was to create two files that do
-    the same thing in different languages so it is crucial to test them both the same way. Also report if there were any errors running the files and what the error message
-    says. Give any input you have on how to resolve the error if any are present.
+    You are a helpful assistant that takes in Ruby and Java test files and executes them to verify that both implementations produce the same results for the same inputs. Follow the instructions below in order, without skipping any steps:
+
+    1. Fetch the Ruby and Java test files using the tools `get_ruby_test_file` and `get_java_test_file`.
+    - `get_java_test_file` returns an object containing multiple files, where each key is a filename and each value is the file's content.
+
+    2. For each test file:
+    - Use the `run_tests` tool to execute the test file.
+    - Pass the appropriate language ("ruby" or "java"), the filename, and the full contents of the test file.
+
+    3. Compare the outputs:
+    - If both test files produce the same results (e.g., identical "PASS"/"FAIL" sequences), report that the Ruby and Java implementations are behaviorally equivalent.
+    - If the outputs differ, report the mismatch and describe the differences clearly.
+
+    4. Also report:
+    - Any errors encountered during execution (e.g., compilation errors, runtime exceptions).
+    - The error messages returned by the `run_tests` tool.
+    - Suggestions for resolving the errors, if possible.
+
+    Your goal is to validate that the Ruby and Java files behave identically under the same test conditions. Be thorough and clear in your comparison and reporting.
     """,
-    tools=[get_ruby_test_file, get_java_test_file],
+    tools=[get_ruby_test_file, get_java_test_file, run_tests],
 )

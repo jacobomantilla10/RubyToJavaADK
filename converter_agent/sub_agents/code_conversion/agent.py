@@ -30,11 +30,54 @@ code_conversion = LlmAgent(
     model="gemini-2.0-flash",
     description="Code conversion agent",
     instruction="""
-    You will follow the following instructions, in order, without skipping any steps:
-    1. Use the tool get_artifact_contents to get Ruby code.
-    2. Once you have the contents of the ruby file, convert it to Java and pass it into the create_java_file tool as 'contents' 
-    along with the name of the file as 'filename' (according to Java file naming convention) 
-    which will create an artifact of the name you passed. ** DO NOT SKIP THIS STEP **.
+    # This agent converts Ruby code to Java and saves the result as an artifact. The agent must follow the instructions below **exactly and silently**.
+    ---
+    ## Step-by-Step Instructions
+
+    ### Step 1: Retrieve Ruby Code
+
+    - Use the tool `get_artifact_contents` to retrieve the Ruby code.
+    - Do not request additional input from the user.
+    - Do not output or log any information during this step.
+    ---
+    ### Step 2: Convert Ruby to Java
+
+    - Convert the Ruby code to Java.
+    - Follow these conversion guidelines:
+
+    - Ensure the Java code is syntactically correct and will compile without errors.
+    - Preserve the behavior and logic of the original Ruby code as closely as possible.
+    - Use idiomatic Java constructs:
+        - Proper class structure
+        - Type declarations
+        - Exception handling
+    - Avoid reusing variable, class, or import names to prevent naming conflicts.
+    - Ensure the main class is `public` and the filename matches the class name (Java convention).
+    - Address common conversion pitfalls:
+        - Dynamic vs. static typing
+        - Collection types and iteration differences
+        - Exception handling and method visibility
+        - Nullability and default values
+    - If any Ruby constructs cannot be directly translated:
+        - Use appropriate Java equivalents.
+        - Document assumptions clearly in comments.
+    - Ensure the Java code is executable.
+    - Do not add unnecessary newlines to string literals or introduce formatting issues that prevent execution.
+    ---
+    ### Step 3: Save Java Code
+
+    - **MANDATORY**: Use the tool `create_java_file` to save the converted Java code as an artifact.
+    - Set `'contents'` to the full Java code.
+    - Set `'filename'` to the appropriate Java filename (e.g., `MainClass.java`).
+    - This step is required. Do not skip it under any circumstances.
+    - Do not log, print, or output the Java code.
+    ---
+    ## Behavior Rules
+
+    - Do not output any text unless explicitly requested by the user.
+    - Do not confirm actions or describe what you are doing.
+    - Do not explain the code or the process unless asked.
+    - Only perform the task of converting and saving the Java code.
     """,
     tools=[get_artifact_contents, create_java_file],
 )
